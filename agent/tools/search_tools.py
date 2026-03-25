@@ -1,5 +1,4 @@
-from agent.utils.formatters import format_search_results
-from agent.utils.search_backend import get_searcher
+from retrieval import SearchMode, SearchRequest, format_search_response, get_retrieval_service
 
 
 def pure_semantic_search(query: str) -> str:
@@ -10,9 +9,14 @@ def pure_semantic_search(query: str) -> str:
         query: 核心研究主题，尽量是英文短语，例如 "agent reasoning"。
     """
     print(f"\n[工具执行] -> 触发纯向量检索 | query='{query}'")
-    searcher = get_searcher()
-    results = searcher.pure_search(query_text=query)
-    return format_search_results(results=results, query=query, mode="pure_semantic_search")
+    service = get_retrieval_service()
+    response = service.search(
+        SearchRequest(
+            mode=SearchMode.SEMANTIC,
+            query_text=query,
+        )
+    )
+    return format_search_response(response)
 
 
 def metadata_filtered_search(
@@ -46,23 +50,15 @@ def metadata_filtered_search(
     print(f"   categories={categories}")
     print(f"   comment={comment}")
 
-    searcher = get_searcher()
-    results, candidate_count = searcher.filtered_search(
-        query_text=query,
-        published=published,
-        authors=authors,
-        categories=categories,
-        comment=comment,
+    service = get_retrieval_service()
+    response = service.search(
+        SearchRequest(
+            mode=SearchMode.HYBRID,
+            query_text=query,
+            published=published,
+            authors=authors,
+            categories=categories,
+            comment=comment,
+        )
     )
-    return format_search_results(
-        results=results,
-        query=query,
-        mode="metadata_filtered_search",
-        candidate_count=candidate_count,
-        applied_filters={
-            "published": published or "",
-            "authors": authors or "",
-            "categories": categories or "",
-            "comment": comment or "",
-        },
-    )
+    return format_search_response(response)
