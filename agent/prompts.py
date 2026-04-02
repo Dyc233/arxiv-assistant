@@ -23,24 +23,20 @@ def build_render_prompt(
     routing: RoutingDecision,
     search_response: SearchResponse,
 ) -> str:
-    filters = {key: value for key, value in search_response.applied_filters.items() if value}
     results = []
-    for result in search_response.results:
-        row = result.row
+    for score, paper_id, doc, meta in search_response.results:
         results.append(
             {
-                "title": row.get("title", ""),
-                "id": result.paper_id,
-                "publish_date": row.get("publish_date", ""),
-                "authors": row.get("authors", ""),
-                "categories": row.get("categories", ""),
-                "top_conference": row.get("top_conference", ""),
-                "comment": row.get("comment", ""),
-                "url": row.get("url", ""),
-                "summary": row.get("summary", ""),
-                "score": round(result.score, 4),
-                "match_source": result.match_source,
-                "score_breakdown": result.score_breakdown,
+                "title": meta.get("title", ""),
+                "id": paper_id,
+                "publish_date": meta.get("publish_date", ""),
+                "authors": meta.get("authors", ""),
+                "categories": meta.get("categories", ""),
+                "top_conference": meta.get("top_conference", ""),
+                "comment": meta.get("comment", ""),
+                "url": meta.get("url", ""),
+                "summary": doc,
+                "score": round(float(score), 4),
             }
         )
 
@@ -52,12 +48,6 @@ def build_render_prompt(
         f"{mode_instruction}\n\n"
         f"用户原始需求:\n{user_input}\n\n"
         f"路由结果:\n{routing.model_dump_json(indent=2)}\n\n"
-        f"检索诊断:\n"
-        f"- search_mode: {search_response.request.mode.value}\n"
-        f"- candidate_count: {search_response.diagnostics.candidate_count}\n"
-        f"- vector_candidate_count: {search_response.diagnostics.vector_candidate_count}\n"
-        f"- reranker_used: {search_response.diagnostics.reranker_used}\n"
-        f"- applied_filters: {filters}\n\n"
         f"检索结果(JSON):\n{results}\n"
     )
 

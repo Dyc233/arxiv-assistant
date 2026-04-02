@@ -1,31 +1,108 @@
-from retrieval.formatters import format_search_response
-from retrieval.service import PaperRetrievalService, get_retrieval_service
-from retrieval.schemas import SearchDiagnostics, SearchMode, SearchRequest, SearchResponse, SearchResult
+"""简化的 retrieval 桥接层 - 供 Agent 使用"""
+from enum import Enum
+from typing import Any
+import sys
+from pathlib import Path
+
+SRC_ROOT = Path(__file__).resolve().parents[1]
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from search import PaperSearcher
+
+
+class SearchMode(str, Enum):
+    SEMANTIC = "semantic"
+    METADATA = "metadata"
+    HYBRID = "hybrid"
+
+
+class SearchRequest:
+    def __init__(self, mode, query_text=None, title=None, authors=None,
+                 categories=None, comment=None, published=None, top_k=5, **kwargs):
+        self.mode = mode
+        self.query_text = query_text
+        self.title = title
+        self.authors = authors
+        self.categories = categories
+        self.comment = comment
+        self.published = published
+        self.top_k = top_k
+
+
+class SearchResponse:
+    def __init__(self, results):
+        self.results = results
+
+
+_searcher = None
+
+
+def get_retrieval_service():
+    """获取检索服务"""
+    return RetrievalService()
+
+
+class RetrievalService:
+    def __init__(self):
+        global _searcher
+        if _searcher is None:
+            _searcher = PaperSearcher()
+        self.searcher = _searcher
+
+    def search(self, request: SearchRequest) -> SearchResponse:
+        """执行检索"""
+        if request.mode == SearchMode.SEMANTIC:
+            results = self.searcher.semantic_search(
+                request.query_text,
+                final_top_k=request.top_k
+            )
+        elif request.mode == SearchMode.METADATA:
+            results = self.searcher.metadata_search(
+                title=request.title,
+                authors=request.authors,
+                categories=request.categories,
+                comment=request.comment,
+                published=request.published,
+                top_k=request.top_k
+            )
+        elif request.mode == SearchMode.HYBRID:
+            results = self.searcher.hybrid_search(
+                query_text=request.query_text,
+                title=request.title,
+                authors=request.authors,
+                categories=request.categories,
+                comment=request.comment,
+                published=request.published,
+                final_top_k=request.top_k
+            )
+        else:
+            results = []
+
+        return SearchResponse(results)
+
+
+def format_search_response(response: SearchResponse) -> str:
+    """格式化检索结果"""
+    if not response.results:
+        return "未找到相关论文"
+
+    output = []
+    for i, (score, paper_id, doc, meta) in enumerate(response.results):
+        title = meta.get('title', 'N/A')
+        date = meta.get('publish_date', 'N/A')
+        output.append(f"【{i+1}】{title}")
+        output.append(f"   发布: {date}")
+        output.append(f"   摘要: {doc[:150]}...")
+        output.append("")
+
+    return "\n".join(output)
+
 
 __all__ = [
-    "PaperRetrievalService",
-    "SearchDiagnostics",
     "SearchMode",
     "SearchRequest",
     "SearchResponse",
-    "SearchResult",
-    "format_search_response",
     "get_retrieval_service",
+    "format_search_response"
 ]
-
-'''
-  - /D:/CODING/BS/src/retrieval/__init__.py
-    对外导出统一入口，给别的模块直接 from retrieval import ... 用。
-  - /D:/CODING/BS/src/retrieval/schemas.py
-    放统一的数据结构：SearchMode、SearchRequest、SearchResult、SearchResponse、SearchDiagnostics。
-  - /D:/CODING/BS/src/retrieval/resources.py
-    管理底层资源：parquet 数据、Chroma collection、embedding 模型、reranker 模型。
-  - /D:/CODING/BS/src/retrieval/filters.py
-    处理纯 metadata 过滤和字段匹配打分，比如 title/authors/categories/comment/published。
-  - /D:/CODING/BS/src/retrieval/service.py
-    检索主入口，统一调度 metadata_search、semantic_search、hybrid_search。
-  - /D:/CODING/BS/src/retrieval/formatters.py
-    把结构化 SearchResponse 渲染成可读文本，方便 CLI 和后续 agent 直接复用。
-  - /D:/CODING/BS/src/retrieval/test_retrieval.py
-    独立测试脚本，用来绕开 agent 直接验证 retrieval 后端。
-'''

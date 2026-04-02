@@ -69,18 +69,18 @@ def _extract_top_conference(comment: str | None) -> str:
 
 
 def _extract_keywords(title: str, summary: str, limit: int = 64) -> list[str]:
+    """简化版关键词提取：只提取单词，不做 n-gram"""
     text = re.sub(r"[^a-z\s]", " ", f"{title} {summary}".lower())
-    tokens = [token for token in text.split() if token not in STOPWORDS and len(token) > 1]
-    keywords: list[str] = []
-    seen: set[str] = set()
-    for n in (1, 2, 3):
-        for index in range(len(tokens) - n + 1):
-            phrase = " ".join(tokens[index:index + n])
-            if phrase and phrase not in seen:
-                seen.add(phrase)
-                keywords.append(phrase)
+    tokens = [token for token in text.split() if token not in STOPWORDS and len(token) > 2]
+    # 去重并限制数量
+    seen = set()
+    keywords = []
+    for token in tokens:
+        if token not in seen:
+            seen.add(token)
+            keywords.append(token)
             if len(keywords) >= limit:
-                return keywords
+                break
     return keywords
 
 
