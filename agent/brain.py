@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from agent.prompts import ROUTER_DESCRIPTION, ROUTER_INSTRUCTIONS, build_render_prompt
 from agent.schemas import RoutingDecision
-from retrieval import SearchMode, SearchRequest, SearchResponse, format_search_response, get_retrieval_service
+from agent.tools.retrieval import SearchMode, SearchRequest, SearchResponse, format_search_response, get_retrieval_service
 
 
 @dataclass(slots=True)

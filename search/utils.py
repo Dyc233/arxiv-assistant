@@ -30,7 +30,6 @@ def filter_by_time(papers: list[dict[str, Any]], time_query: str | None) -> list
         if not publish_date:
             continue
 
-        # 提取年份
         try:
             if isinstance(publish_date, str):
                 year = int(publish_date[:4])

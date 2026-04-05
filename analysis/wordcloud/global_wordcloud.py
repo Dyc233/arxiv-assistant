@@ -84,7 +84,7 @@ def main() -> None:
         font_path=str(FONT_PATH),
     ).generate_from_frequencies(frequencies)
 
-    wc.to_file(str(OUTPUT_DIR / "global_wordcloud_lib.png"))
+    wc.to_file(str(OUTPUT_DIR / "global_wordcloud.png"))
     pd.DataFrame(counter.most_common(160), columns=["term", "paper_count"]).to_csv(
         OUTPUT_DIR / "global_word_frequencies_lib.csv",
         index=False,

@@ -1,5 +1,5 @@
 from agent.schemas import ResponseMode, RoutingDecision
-from retrieval import SearchResponse
+from agent.tools.retrieval import SearchResponse
 
 
 ROUTER_DESCRIPTION = "你是一个论文检索路由器，只负责把用户请求拆成结构化检索意图。"
@@ -32,19 +32,40 @@ def build_render_prompt(
                 "publish_date": meta.get("publish_date", ""),
                 "authors": meta.get("authors", ""),
                 "categories": meta.get("categories", ""),
-                "top_conference": meta.get("top_conference", ""),
-                "comment": meta.get("comment", ""),
+                "top_conference": meta.get("top_conference", "") or "无",
+                "comment": meta.get("comment", "") or "无",
                 "url": meta.get("url", ""),
                 "summary": doc,
                 "score": round(float(score), 4),
             }
         )
 
+    global_format_instruction = """
+### 你的回答严格分为两个部分：
+
+**第一部分：论文检索列表**
+- 这一部分必须存在且放在最前面（Report模式除外）。
+- 必须使用以下 Markdown 格式展示每一篇论文（不要使用表格，使用列表块）：
+  ---
+#### [序号] {{title}}
+  - **ID**: {{id}} | **Score**: {{score}}
+  - **作者**: {{authors}}
+  - **发表日期**: {{publish_date}} | **领域/分类**: {{categories}}
+  - **顶会/顶刊**: {{top_conference}} （如果有的话）
+  - **链接**: [{{url}}]({{url}})
+  - **摘要**: {{summary}}
+  ---
+
+**第二部分：深度处理（根据模式不同而变化）**
+- 在列表结束后，根据要求的模式输出对应的分析内容。
+"""
+
     mode_instruction = _response_mode_instruction(routing.response_mode)
     return (
         "你是一个 NLP 论文助手，负责基于已经检索好的结果向用户作答。\n"
         "你不能编造不在结果里的论文，也不能改写标题、作者、日期、链接。\n"
         "如果结果为空，就明确说明没有检索到匹配论文，并简短复述检索条件。\n"
+        f"{global_format_instruction}\n"
         f"{mode_instruction}\n\n"
         f"用户原始需求:\n{user_input}\n\n"
         f"路由结果:\n{routing.model_dump_json(indent=2)}\n\n"
@@ -56,12 +77,12 @@ def _response_mode_instruction(mode: ResponseMode) -> str:
     if mode == ResponseMode.RAW_LIST:
         return (
             "输出要求: 只输出忠实的原始结果列表。"
-            " 不要写长篇分析。每条结果展示 title、authors、publish_date、categories、venue/comment、url、score。"
+            " 不要写长篇分析。每条结果展示 title、authors、publish_date、categories、comment、url、score。"
         )
     if mode == ResponseMode.LIST_WITH_INSIGHTS:
         return (
-            "输出要求: 先给出结果列表，再给 2 到 4 条简短见解。"
-            " 见解必须严格基于结果列表，例如主题分布、时间分布、venue 分布、方法趋势。"
+            "输出要求: 先给出结果列表，再给一些简短的见解。"
+            " 见解必须严格基于结果列表，例如主题分布、时间分布、分类分布、方法趋势。"
         )
     return (
         "输出要求: 基于结果生成一份结构化综述报告。"
