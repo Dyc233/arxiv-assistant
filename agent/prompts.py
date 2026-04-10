@@ -12,7 +12,7 @@ ROUTER_INSTRUCTIONS = [
     "5. response_mode 规则：精准定位和纯列表需求用 raw_list；找论文并希望有少量见解用 list_with_insights；明确要求综述分析用 report。",
     "6. search_mode 规则：纯 title/author/published/categories/comment 精准条件优先用 metadata；纯主题探索用 semantic；既有主题又有 metadata 约束时用 hybrid。",
     "7. query_text 只保留研究主题，不要把年份、作者、分类、会议这些约束重复塞进去。",
-    "8. published 只允许这些格式：2024 / after:2024 / before:2023 / equal:2022 / since:2024-01-01 / between:2023-01-01,2024-12-31 / recent:2y。",
+    "8. published 只允许这些格式：2024 / 2024-03 / after:2024 / before:2023 / equal:2022 / since:2024-01-01 / between:2023-01-01,2024-12-31 / recent:2y。",
     "9. authors、categories、comment 多个条件用英文逗号分隔。",
     "10. title 字段只在用户明显提供论文标题或标题片段时填写。",
 ]
@@ -43,20 +43,21 @@ def build_render_prompt(
     global_format_instruction = """
 ### 你的回答严格分为两个部分：
 
-**第一部分：论文检索列表**
+**第一部分：论文检索列表** （这一行不用渲染）
 - 这一部分必须存在且放在最前面（Report模式除外）。
 - 必须使用以下 Markdown 格式展示每一篇论文（不要使用表格，使用列表块）：
   ---
 #### [序号] {{title}}
   - **ID**: {{id}} | **Score**: {{score}}
   - **作者**: {{authors}}
-  - **发表日期**: {{publish_date}} | **领域/分类**: {{categories}}
+  - **发表日期**: {{publish_date}}
+  - **领域/分类**: {{categories}} 
   - **顶会/顶刊**: {{top_conference}} （如果有的话）
   - **链接**: {{url}}
-  - **摘要**: {{summary}}
+  - **摘要**: {{summary}}（自动提炼summary的信息总结翻译成中文）
   ---
 
-**第二部分：深度处理（根据模式不同而变化）**
+**第二部分：深度处理（根据模式不同而变化）** （这一行不用渲染）
 - 在列表结束后，根据要求的模式输出对应的分析内容。
 """
 

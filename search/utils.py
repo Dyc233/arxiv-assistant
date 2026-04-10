@@ -55,9 +55,12 @@ def filter_by_time(papers: list[dict[str, Any]], time_query: str | None) -> list
             continue
 
         keep = False
-        if q.isdigit() or q.startswith("equal:"):
-            target = int(q.split(":")[-1])
-            keep = (year == target)
+        if q.isdigit() or q.startswith("equal:") or (len(q) == 7 and q[4] == "-"):
+            target = q.split(":")[-1].strip()
+            if len(target) == 7 and target[4] == "-":  # YYYY-MM
+                keep = str(pd).startswith(target)
+            else:
+                keep = (year == int(target))
         elif q.startswith("after:"):
             keep = (year >= int(q.split(":")[1]))
         elif q.startswith("before:"):

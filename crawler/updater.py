@@ -1,4 +1,23 @@
-"""简化版增量更新脚本 - 删除了复杂的备份恢复机制"""
+"""增量更新脚本：爬虫 → 清洗 → 合并 parquet → upsert ChromaDB
+ 正常增量更新（最常用）：
+  cd D:/CODING/BS/src
+  .venv/Scripts/python -m crawler.updater
+  自动从 SQLite 最新时间戳往后抓，清洗、合并 parquet、upsert ChromaDB。
+
+  ---
+  只抓数据不跑 embedding（网络好但 GPU 不在）：
+  .venv/Scripts/python -m crawler.updater --skip-embedding
+  之后补跑 embedding：
+  .venv/Scripts/python -m crawler.updater --retry-embedding
+
+  ---
+  ChromaDB 上次失败了，补跑 embedding：
+  .venv/Scripts/python -m crawler.updater --retry-embedding
+
+  ---
+  限制抓取数量（测试用）：
+  .venv/Scripts/python -m crawler.updater --max-results 100
+"""
 import argparse
 import sys
 from pathlib import Path
@@ -11,10 +30,10 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from analysis.data_process import (
-    CLEANED_COLUMNS,
     DEFAULT_INCREMENTAL_PATH,
     DEFAULT_PARQUET_PATH,
     clean_papers,
+    merge_cleaned_papers,
     read_cleaned_papers,
 )
 from analysis.embedder import (
@@ -48,21 +67,40 @@ def parse_args():
     parser.add_argument("--insert-batch-size", type=int, default=50)
     parser.add_argument("--embedding-batch-size", type=int, default=BATCH_SIZE)
     parser.add_argument("--skip-embedding", action="store_true")
+    parser.add_argument("--retry-embedding", action="store_true",
+                         help="跳过爬虫/清洗/合并，直接从增量 parquet 重新 upsert ChromaDB")
     return parser.parse_args()
 
 
+def _do_upsert(incremental_df, args):
+    upsert_dataframe(
+        incremental_df,
+        chroma_dir=args.chroma_dir,
+        collection_name=args.collection_name,
+        model_name=args.model_name,
+        batch_size=args.embedding_batch_size,
+    )
+
+
 def main():
-    """主函数：拉取新论文、清洗、合并、生成向量"""
     args = parse_args()
 
-    # 初始化数据库
-    conn = init_db(args.db_path)
+    if args.retry_embedding:
+        if not args.incremental_path.exists():
+            print(f"找不到增量文件: {args.incremental_path}")
+            print("请先正常运行一次 updater，或手动指定 --incremental-path")
+            return
+        incremental_df = read_cleaned_papers(args.incremental_path)
+        print(f"重试 upsert，共 {len(incremental_df)} 篇...")
+        _do_upsert(incremental_df, args)
+        print("✅ 重试完成")
+        return
 
-    # 获取最新发布时间
+    # ── 正常流程 ──
+    conn = init_db(args.db_path)
     latest_published = get_latest_published(conn)
     print(f"最新论文时间: {latest_published}")
 
-    # 拉取新论文
     print(f"开始拉取新论文 (类别: {args.category}, 最多: {args.max_results})...")
     new_rows = fetch_new_papers(
         conn,
@@ -70,7 +108,7 @@ def main():
         batch_size=args.insert_batch_size,
         category=args.category,
         newer_than=latest_published,
-        persist=True,  # 直接持久化到数据库
+        persist=True,
     )
 
     if not new_rows:
@@ -79,7 +117,6 @@ def main():
 
     print(f"拉取到 {len(new_rows)} 篇新论文")
 
-    # 清洗数据
     print("清洗数据...")
     incremental_df = clean_papers(new_rows)
 
@@ -89,50 +126,32 @@ def main():
 
     print(f"清洗后剩余 {len(incremental_df)} 篇论文")
 
-    # 保存增量数据
-    print(f"保存增量数据到: {args.incremental_path}")
+    # 先保存增量快照（合并前），供 --retry-embedding 使用
     args.incremental_path.parent.mkdir(parents=True, exist_ok=True)
     incremental_df.to_parquet(args.incremental_path, index=False)
+    print(f"增量快照已保存: {args.incremental_path}")
 
-    # 合并到主数据集
+    # 合并到主数据集（staged write，保护原文件）
     print("合并到主数据集...")
-    if args.cleaned_path.exists():
-        base_df = read_cleaned_papers(args.cleaned_path)
-        merged_df = pd.concat([base_df, incremental_df], ignore_index=True)
-        merged_df = merged_df.drop_duplicates(subset=["id"], keep="last")
-        if "published_ts" in merged_df.columns:
-            merged_df = merged_df.sort_values("published_ts", ascending=False)
-        merged_df = merged_df[CLEANED_COLUMNS].reset_index(drop=True)
-    else:
-        merged_df = incremental_df[CLEANED_COLUMNS]
+    merge_cleaned_papers(incremental_df, args.cleaned_path)
+    print(f"主数据集已更新: {args.cleaned_path}")
 
-    # 修复日期类型问题
-    if "publish_date" in merged_df.columns:
-        merged_df["publish_date"] = merged_df["publish_date"].astype(str)
-
-    print(f"保存合并数据到: {args.cleaned_path}")
-    args.cleaned_path.parent.mkdir(parents=True, exist_ok=True)
-    merged_df.to_parquet(args.cleaned_path, index=False)
-
-    # 生成向量并存入 ChromaDB
-    if not args.skip_embedding:
-        print("生成向量并存入 ChromaDB...")
-        upsert_dataframe(
-            incremental_df,
-            chroma_dir=args.chroma_dir,
-            collection_name=args.collection_name,
-            model_name=args.model_name,
-            batch_size=args.embedding_batch_size,
-        )
-        print("向量化完成")
-    else:
+    # upsert 向量库
+    if args.skip_embedding:
         print("跳过向量化")
+    else:
+        print("生成向量并存入 ChromaDB...")
+        try:
+            _do_upsert(incremental_df, args)
+            print("向量化完成")
+        except Exception as e:
+            print(f"[警告] ChromaDB upsert 失败: {e}")
+            print("parquet 已更新，向量库未同步。")
+            print("修复命令：python -m crawler.updater --retry-embedding")
+            return
 
     print(f"\n✅ 更新完成！新增 {len(incremental_df)} 篇论文")
 
 
 if __name__ == "__main__":
     main()
-
-
-

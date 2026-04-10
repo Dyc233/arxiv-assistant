@@ -98,6 +98,10 @@ def _normalize_cleaned_papers(df: pd.DataFrame) -> pd.DataFrame:
         normalized["published_ts"] = pd.to_datetime(normalized["published_ts"], utc=True, errors="coerce")
     if "publish_hour" in normalized.columns:
         normalized["publish_hour"] = pd.array(normalized["publish_hour"], dtype="Int64")
+    if "publish_date" in normalized.columns:
+        normalized["publish_date"] = normalized["publish_date"].apply(
+            lambda v: v.isoformat() if hasattr(v, "isoformat") and not isinstance(v, str) else (str(v) if not pd.isna(v) else "")
+        ).astype(str)
     return normalized[CLEANED_COLUMNS]
 
 
@@ -167,9 +171,17 @@ def merge_cleaned_papers(
     merged_df = merged_df.drop_duplicates(subset=["id"], keep="last")
     if "published_ts" in merged_df.columns:
         merged_df = merged_df.sort_values("published_ts", ascending=False, kind="stable")
-    merged_df = _normalize_cleaned_papers(merged_df).reset_index(drop=True)
-    write_cleaned_papers(merged_df, parquet_path)
-    return merged_df
+    # staged write：先写临时文件，成功后再替换原路径（兼容文件/目录两种形式）
+    tmp_path = parquet_path.with_suffix(".tmp.parquet")
+    _normalize_cleaned_papers(merged_df).reset_index(drop=True).to_parquet(tmp_path, index=False)
+    if parquet_path.exists():
+        if parquet_path.is_dir():
+            shutil.rmtree(parquet_path)
+        else:
+            parquet_path.unlink()
+    tmp_path.rename(parquet_path)
+
+    return _normalize_cleaned_papers(merged_df).reset_index(drop=True)
 
 
 def process_arxiv_data(
