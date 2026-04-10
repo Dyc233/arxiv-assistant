@@ -37,8 +37,22 @@ class AgnoResearchAssistant:
         )
 
     def route(self, user_input: str) -> RoutingDecision:
-        run_output = self.router.run(user_input)
-        return self._coerce_routing_decision(run_output)
+        try:
+            # 正常尝试让 AI 进行路由
+            run_output = self.router.run(user_input)
+            return self._coerce_routing_decision(run_output)
+        except Exception as e:
+            # 捕获所有错误（超时、API 报错、类型转换失败等）
+            print(f"路由失败 ({e})，已切换至语义检索模式。")
+            
+            # 返回一个“万能”的默认路由决策，确保后面的 self.retrieve(routing) 不会断流
+            return RoutingDecision(
+                task_type="search",
+                search_mode="semantic",
+                query_text=user_input,
+                response_mode="list_with_insights",
+                top_k=5                  
+            )
 
     def retrieve(self, routing: RoutingDecision) -> SearchResponse:
         request = SearchRequest(

@@ -59,6 +59,7 @@ class RetrievalService:
             )
         elif request.mode == SearchMode.METADATA:
             results = self.searcher.metadata_search(
+                query_text=request.query_text,
                 title=request.title,
                 authors=request.authors,
                 categories=request.categories,

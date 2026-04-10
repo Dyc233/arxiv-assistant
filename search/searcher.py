@@ -6,7 +6,7 @@ import chromadb
 import pandas as pd
 from sentence_transformers import SentenceTransformer, CrossEncoder
 
-from search.utils import filter_by_time, filter_by_metadata
+from search.utils import filter_by_time, filter_by_metadata, metadata_match_score
 
 
 # 配置
@@ -95,37 +95,42 @@ class PaperSearcher:
 
         return results[:final_top_k]
 
-    def metadata_search(self, title=None, authors=None, categories=None, comment=None, published=None, top_k=10):
+    def metadata_search(self, query_text=None, title=None, authors=None, categories=None, comment=None, published=None, top_k=10):
         """
         纯元数据检索：基于字段匹配
-
-        Args:
-            title: 标题关键词
-            authors: 作者关键词
-            categories: 分类关键词
-            comment: 评论/会议关键词
-            published: 发布时间（支持 "2023", "after:2023", "before:2024"）
-            top_k: 返回数量
+        若提供 query_text，用 Reranker 打分；否则用字段匹配质量打分。
         """
         if self.df is None:
             print("错误: 元数据文件未加载")
             return []
 
-        # 转换为字典列表
         papers = self.df.to_dict('records')
-
-        # 应用过滤
         filtered = filter_by_metadata(papers, title, authors, categories, comment)
         filtered = filter_by_time(filtered, published)
 
-        # 按发布时间排序（最新的在前）
-        filtered.sort(key=lambda x: x.get('publish_date', ''), reverse=True)
+        if not filtered:
+            return []
 
-        # 格式化返回结果（与语义检索保持一致的格式）
+        if query_text:
+            # 有语义查询：用 Reranker 打分
+            sentence_pairs = [
+                [query_text, f"Title: {p.get('title', '')}\nAbstract: {p.get('summary', p.get('abstract', ''))}"]
+                for p in filtered
+            ]
+            scores = self.reranker.predict(sentence_pairs)
+            ranked = sorted(zip(scores, filtered), key=lambda x: x[0], reverse=True)
+        else:
+            # 无语义查询：按字段匹配程度 + 时间倒排
+            ranked = sorted(
+                [(metadata_match_score(p, title, authors, categories, comment), p) for p in filtered],
+                key=lambda x: (x[0], x[1].get('publish_date', '')),
+                reverse=True
+            )
+
         results = []
-        for paper in filtered[:top_k]:
+        for score, paper in ranked[:top_k]:
             results.append((
-                1.0,  # 元数据匹配给固定分数
+                float(score),
                 paper.get('id', ''),
                 paper.get('summary', paper.get('abstract', '')),
                 {
