@@ -1,7 +1,6 @@
+"""简化版增量更新脚本 - 删除了复杂的备份恢复机制"""
 import argparse
-import shutil
 import sys
-import uuid
 from pathlib import Path
 
 import pandas as pd
@@ -17,19 +16,16 @@ from analysis.data_process import (
     DEFAULT_PARQUET_PATH,
     clean_papers,
     read_cleaned_papers,
-    write_cleaned_papers_staged,
 )
 from analysis.embedder import (
     BATCH_SIZE,
     CHROMA_DB_DIR,
     COLLECTION_NAME,
     MODEL_NAME,
-    delete_ids,
     upsert_dataframe,
 )
 from crawler.spider import (
     DEFAULT_CATEGORY,
-    _insert_rows_with_commit,
     fetch_new_papers,
     get_latest_published,
     init_db,
@@ -39,8 +35,8 @@ from crawler.spider import (
 DEFAULT_DB_PATH = SRC_ROOT.parent / "data" / "arxiv_papers.db"
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Fetch, clean, and stage an incremental arXiv update.")
+def parse_args():
+    parser = argparse.ArgumentParser(description="增量更新 arXiv 论文数据")
     parser.add_argument("--db-path", type=Path, default=DEFAULT_DB_PATH)
     parser.add_argument("--cleaned-path", type=Path, default=DEFAULT_PARQUET_PATH)
     parser.add_argument("--incremental-path", type=Path, default=DEFAULT_INCREMENTAL_PATH)
@@ -55,146 +51,88 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _build_merged_dataframe(incremental_df: pd.DataFrame, cleaned_path: Path) -> pd.DataFrame:
-    base_df = read_cleaned_papers(cleaned_path)
-    merged_df = pd.concat([base_df, incremental_df], ignore_index=True)
-    merged_df = merged_df.drop_duplicates(subset=["id"], keep="last")
-    if "published_ts" in merged_df.columns:
-        merged_df = merged_df.sort_values("published_ts", ascending=False, kind="stable")
-    return merged_df[CLEANED_COLUMNS].reset_index(drop=True)
-
-
-def _backup_path(target: Path) -> Path:
-    return target.with_name(f"{target.name}.{uuid.uuid4().hex}.bak")
-
-
-def _remove_path(path: Path) -> None:
-    if not path.exists():
-        return
-    if path.is_dir():
-        shutil.rmtree(path)
-    else:
-        path.unlink()
-
-
-def _promote_staged_file(target: Path, staged: Path, replaced_paths: list[tuple[Path, Path | None]]) -> None:
-    target.parent.mkdir(parents=True, exist_ok=True)
-    backup = None
-    if target.exists():
-        backup = _backup_path(target)
-        target.replace(backup)
-
-    try:
-        staged.replace(target)
-    except Exception:
-        if backup is not None and backup.exists() and not target.exists():
-            backup.replace(target)
-        raise
-
-    replaced_paths.append((target, backup))
-
-
-def _restore_replaced_paths(replaced_paths: list[tuple[Path, Path | None]]) -> None:
-    for target, backup in reversed(replaced_paths):
-        _remove_path(target)
-        if backup is not None and backup.exists():
-            backup.replace(target)
-
-
-def _cleanup_backups(replaced_paths: list[tuple[Path, Path | None]]) -> None:
-    for _, backup in replaced_paths:
-        if backup is not None:
-            _remove_path(backup)
-
-
-def _cleanup_staged_paths(paths: list[Path]) -> None:
-    for path in paths:
-        _remove_path(path)
-
-
-def main() -> None:
+def main():
+    """主函数：拉取新论文、清洗、合并、生成向量"""
     args = parse_args()
+
+    # 初始化数据库
     conn = init_db(args.db_path)
-    replaced_paths: list[tuple[Path, Path | None]] = []
-    staged_paths: list[Path] = []
-    vector_ids: list[str] = []
-    embedding_applied = False
 
-    try:
-        latest_published = get_latest_published(conn)
-        new_rows = fetch_new_papers(
-            conn,
-            max_results=args.max_results,
-            batch_size=args.insert_batch_size,
-            category=args.category,
-            newer_than=latest_published,
-            persist=False,
+    # 获取最新发布时间
+    latest_published = get_latest_published(conn)
+    print(f"最新论文时间: {latest_published}")
+
+    # 拉取新论文
+    print(f"开始拉取新论文 (类别: {args.category}, 最多: {args.max_results})...")
+    new_rows = fetch_new_papers(
+        conn,
+        max_results=args.max_results,
+        batch_size=args.insert_batch_size,
+        category=args.category,
+        newer_than=latest_published,
+        persist=True,  # 直接持久化到数据库
+    )
+
+    if not new_rows:
+        print("没有新论文，退出")
+        return
+
+    print(f"拉取到 {len(new_rows)} 篇新论文")
+
+    # 清洗数据
+    print("清洗数据...")
+    incremental_df = clean_papers(new_rows)
+
+    if incremental_df.empty:
+        print("清洗后无有效数据，退出")
+        return
+
+    print(f"清洗后剩余 {len(incremental_df)} 篇论文")
+
+    # 保存增量数据
+    print(f"保存增量数据到: {args.incremental_path}")
+    args.incremental_path.parent.mkdir(parents=True, exist_ok=True)
+    incremental_df.to_parquet(args.incremental_path, index=False)
+
+    # 合并到主数据集
+    print("合并到主数据集...")
+    if args.cleaned_path.exists():
+        base_df = read_cleaned_papers(args.cleaned_path)
+        merged_df = pd.concat([base_df, incremental_df], ignore_index=True)
+        merged_df = merged_df.drop_duplicates(subset=["id"], keep="last")
+        if "published_ts" in merged_df.columns:
+            merged_df = merged_df.sort_values("published_ts", ascending=False)
+        merged_df = merged_df[CLEANED_COLUMNS].reset_index(drop=True)
+    else:
+        merged_df = incremental_df[CLEANED_COLUMNS]
+
+    # 修复日期类型问题
+    if "publish_date" in merged_df.columns:
+        merged_df["publish_date"] = merged_df["publish_date"].astype(str)
+
+    print(f"保存合并数据到: {args.cleaned_path}")
+    args.cleaned_path.parent.mkdir(parents=True, exist_ok=True)
+    merged_df.to_parquet(args.cleaned_path, index=False)
+
+    # 生成向量并存入 ChromaDB
+    if not args.skip_embedding:
+        print("生成向量并存入 ChromaDB...")
+        upsert_dataframe(
+            incremental_df,
+            chroma_dir=args.chroma_dir,
+            collection_name=args.collection_name,
+            model_name=args.model_name,
+            batch_size=args.embedding_batch_size,
         )
+        print("向量化完成")
+    else:
+        print("跳过向量化")
 
-        if not new_rows:
-            print("No new papers detected. Nothing changed.")
-            return
-
-        incremental_df = clean_papers(new_rows)
-        if incremental_df.empty:
-            print("Fetched papers did not produce any valid cleaned rows. Nothing changed.")
-            return
-
-        vector_ids = incremental_df["id"].astype(str).tolist()
-        merged_df = _build_merged_dataframe(incremental_df, args.cleaned_path)
-
-        staged_incremental_path = write_cleaned_papers_staged(incremental_df, args.incremental_path)
-        staged_cleaned_path = write_cleaned_papers_staged(merged_df, args.cleaned_path)
-        staged_paths.extend([staged_incremental_path, staged_cleaned_path])
-
-        if not args.skip_embedding:
-            upsert_dataframe(
-                incremental_df,
-                chroma_dir=args.chroma_dir,
-                collection_name=args.collection_name,
-                model_name=args.model_name,
-                batch_size=args.embedding_batch_size,
-            )
-            embedding_applied = True
-
-        conn.execute("BEGIN IMMEDIATE")
-        _insert_rows_with_commit(
-            conn,
-            new_rows,
-            batch_size=args.insert_batch_size,
-            commit=False,
-        )
-        _promote_staged_file(args.incremental_path, staged_incremental_path, replaced_paths)
-        _promote_staged_file(args.cleaned_path, staged_cleaned_path, replaced_paths)
-        conn.commit()
-
-        _cleanup_backups(replaced_paths)
-        replaced_paths.clear()
-        print(f"Incremental sync completed successfully with {len(incremental_df)} papers.")
-    except Exception:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-
-        if replaced_paths:
-            _restore_replaced_paths(replaced_paths)
-
-        if embedding_applied and not args.skip_embedding and vector_ids:
-            try:
-                delete_ids(
-                    vector_ids,
-                    chroma_dir=args.chroma_dir,
-                    collection_name=args.collection_name,
-                )
-            except Exception:
-                pass
-
-        raise
-    finally:
-        _cleanup_staged_paths(staged_paths)
-        conn.close()
+    print(f"\n✅ 更新完成！新增 {len(incremental_df)} 篇论文")
 
 
 if __name__ == "__main__":
     main()
+
+
+

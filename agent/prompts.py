@@ -52,7 +52,7 @@ def build_render_prompt(
   - **作者**: {{authors}}
   - **发表日期**: {{publish_date}} | **领域/分类**: {{categories}}
   - **顶会/顶刊**: {{top_conference}} （如果有的话）
-  - **链接**: [{{url}}]({{url}})
+  - **链接**: {{url}}
   - **摘要**: {{summary}}
   ---
 

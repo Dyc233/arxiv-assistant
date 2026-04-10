@@ -16,12 +16,22 @@ BATCH_SIZE = 32
 
 
 def _build_metadata(df: pd.DataFrame) -> list[dict[str, str]]:
-    metadata_df = df[["title", "publish_date", "top_conference"]].copy()
-    metadata_df["publish_date"] = metadata_df["publish_date"].astype(str)
-    metadata_df["top_conference"] = metadata_df["top_conference"].fillna("None")
-    if "url" in df.columns:
-        metadata_df["url"] = df["url"].fillna("")
-    return metadata_df.to_dict("records")
+    cols = {
+        "title": "",
+        "publish_date": "",
+        "top_conference": "无",
+        "authors": "",
+        "categories": "",
+        "comment": "",
+        "url": "",
+    }
+    meta = {}
+    for col, default in cols.items():
+        if col in df.columns:
+            meta[col] = df[col].fillna(default).astype(str)
+        else:
+            meta[col] = default
+    return pd.DataFrame(meta).to_dict("records")
 
 
 def upsert_dataframe(

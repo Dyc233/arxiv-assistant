@@ -1,0 +1,2 @@
+- [项目概况](project_overview.md) — arXiv NLP 论文 RAG 系统，本科毕设，Kimi API
+- [代码风格要求](feedback_code_style.md) — 最少代码、保留粗糙感、禁止过度工程化

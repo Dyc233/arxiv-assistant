@@ -171,33 +171,33 @@ class PaperSearcher:
             return []
 
         # 获取过滤后的 ID 列表
-        candidate_ids = [str(p['id']) for p in filtered]
-        print(f"元数据过滤后剩余 {len(candidate_ids)} 篇论文")
+        candidate_set = set(str(p['id']) for p in filtered)
+        print(f"元数据过滤后剩余 {len(candidate_set)} 篇论文")
 
-        # 第二步：在候选集中做语义检索
+        # 第二步：语义召回，扩大 n_results 以覆盖候选集过滤损失，再 post-filter
         query_embedding = self.embedder.encode(query_text, normalize_embeddings=True).tolist()
-
-        # 从 ChromaDB 中只查询候选集
-        recall_results = self.collection.get(
-            ids=candidate_ids[:recall_top_k],
-            include=["documents", "metadatas", "embeddings"]
+        n_query = min(recall_top_k * 20, self.collection.count())
+        recall_results = self.collection.query(
+            query_embeddings=[query_embedding],
+            n_results=n_query,
+            include=["documents", "metadatas", "distances"]
         )
 
-        ids = recall_results.get('ids', [])
-        docs = recall_results.get('documents', [])
-        metas = recall_results.get('metadatas', [])
-        embeddings = recall_results.get('embeddings', [])
+        ids, docs, metas = [], [], []
+        for id_, doc, meta in zip(
+            recall_results['ids'][0],
+            recall_results['documents'][0],
+            recall_results['metadatas'][0],
+        ):
+            if id_ in candidate_set:
+                ids.append(id_)
+                docs.append(doc)
+                metas.append(meta)
+                if len(ids) >= recall_top_k:
+                    break
 
         if not ids:
             return []
-
-        # 计算相似度
-        query_tensor = torch.tensor(query_embedding, dtype=torch.float32)
-        scores = []
-        for emb in embeddings:
-            emb_tensor = torch.tensor(emb, dtype=torch.float32)
-            similarity = torch.dot(query_tensor, emb_tensor).item()
-            scores.append(similarity)
 
         # 第三步：重排序（可选）
         if use_reranker:
@@ -212,6 +212,8 @@ class PaperSearcher:
                 reverse=True
             )
         else:
+            distances = recall_results['distances'][0][:len(ids)]
+            scores = [1.0 - d for d in distances]
             results = sorted(
                 zip(scores, ids, docs, metas),
                 key=lambda x: x[0],
