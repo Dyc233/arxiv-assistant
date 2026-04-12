@@ -30,4 +30,4 @@ class RoutingDecision(BaseModel):
         default=None,
         description="Published time filter such as 2024, after:2024, since:2024-01-01, between:2023-01-01,2024-12-31, recent:2y.",
     )
-    top_k: int = Field(default=5, ge=1, le=10, description="How many papers to show.")
+    top_k: int = Field(default=10, ge=1, le=50, description="How many papers to retrieve.")

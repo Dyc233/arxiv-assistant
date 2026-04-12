@@ -23,54 +23,28 @@ def build_render_prompt(
     routing: RoutingDecision,
     search_response: SearchResponse,
 ) -> str:
-    results = []
+    # 只传给 LLM 精简信息，论文卡片由前端渲染
+    brief_results = []
     for score, paper_id, doc, meta in search_response.results:
-        results.append(
+        brief_results.append(
             {
                 "title": meta.get("title", ""),
-                "id": paper_id,
                 "publish_date": meta.get("publish_date", ""),
-                "authors": meta.get("authors", ""),
                 "categories": meta.get("categories", ""),
-                "top_conference": meta.get("top_conference", "") or "无",
-                "comment": meta.get("comment", "") or "无",
-                "url": meta.get("url", ""),
-                "summary": doc,
-                "score": round(float(score), 4),
+                "top_conference": meta.get("top_conference", "") or "",
+                "summary": doc[:300],
             }
         )
 
-    global_format_instruction = """
-### 你的回答严格分为两个部分：
-
-**第一部分：论文检索列表** （这一行不用渲染）
-- 这一部分必须存在且放在最前面（Report模式除外）。
-- 必须使用以下 Markdown 格式展示每一篇论文（不要使用表格，使用列表块）：
-  ---
-#### [序号] {{title}}
-  - **ID**: {{id}} | **Score**: {{score}}
-  - **作者**: {{authors}}
-  - **发表日期**: {{publish_date}}
-  - **领域/分类**: {{categories}} 
-  - **顶会/顶刊**: {{top_conference}} （如果有的话）
-  - **链接**: {{url}}
-  - **摘要**: {{summary}}（自动提炼summary的信息总结翻译成中文）
-  ---
-
-**第二部分：深度处理（根据模式不同而变化）** （这一行不用渲染）
-- 在列表结束后，根据要求的模式输出对应的分析内容。
-"""
-
     mode_instruction = _response_mode_instruction(routing.response_mode)
     return (
-        "你是一个 NLP 论文助手，负责基于已经检索好的结果向用户作答。\n"
-        "你不能编造不在结果里的论文，也不能改写标题、作者、日期、链接。\n"
+        "你是一个 NLP 论文助手，论文列表已由前端展示，你只需要完成分析部分。\n"
+        "不要输出论文列表，不要重复标题和链接。\n"
         "如果结果为空，就明确说明没有检索到匹配论文，并简短复述检索条件。\n"
-        f"{global_format_instruction}\n"
         f"{mode_instruction}\n\n"
         f"用户原始需求:\n{user_input}\n\n"
         f"路由结果:\n{routing.model_dump_json(indent=2)}\n\n"
-        f"检索结果(JSON):\n{results}\n"
+        f"检索到的论文（精简版，供分析用）:\n{brief_results}\n"
     )
 
 
