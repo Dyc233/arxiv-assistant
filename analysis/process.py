@@ -30,22 +30,22 @@ STOPWORDS = {
     "who", "whom", "why", "with", "would", "you", "your", "yours", "yourself", "yourselves",
 }
 CLEANED_COLUMNS = [
-    "id",
-    "title",
-    "summary",
-    "published",
-    "published_ts",
-    "publish_date",
-    "publish_hour",
-    "authors",
-    "author_list",
-    "categories",
-    "category_list",
-    "comment",
-    "top_conference",
-    "url",
-    "content_to_embed",
-    "keywords",
+    "id",               # arXiv 论文唯一标识
+    "title",            # 论文标题
+    "summary",          # 论文摘要
+    "published",        # 原始发布时间字符串
+    "published_ts",     # 解析后的 UTC 时间戳
+    "publish_date",     # 仅保留日期，格式 YYYY-MM-DD
+    "publish_hour",     # 发布时间对应的小时
+    "authors",          # 原始作者字符串
+    "author_list",      # 按逗号拆分后的作者列表
+    "categories",       # 原始分类字符串
+    "category_list",    # 按逗号拆分后的分类列表
+    "comment",          # arXiv comment 字段原文
+    "top_conference",   # 从 comment 中提取出的顶会信息
+    "url",              # 论文原文链接
+    "content_to_embed", # 供向量化使用的标题+摘要拼接文本
+    "keywords",         # 从标题和摘要中抽取的关键词列表
 ]
 
 

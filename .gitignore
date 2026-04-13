@@ -17,3 +17,4 @@ chroma_db/
 .tmp/
 .uv_cache/
 
+.claude/

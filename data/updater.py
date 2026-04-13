@@ -29,21 +29,21 @@ SRC_ROOT = Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from analysis.data_process import (
+from analysis.process import (
     DEFAULT_INCREMENTAL_PATH,
     DEFAULT_PARQUET_PATH,
     clean_papers,
     merge_cleaned_papers,
     read_cleaned_papers,
 )
-from analysis.embedder import (
+from data.embedder import (
     BATCH_SIZE,
     CHROMA_DB_DIR,
     COLLECTION_NAME,
     MODEL_NAME,
     upsert_dataframe,
 )
-from crawler.spider import (
+from data.spider import (
     DEFAULT_CATEGORY,
     fetch_new_papers,
     get_latest_published,

@@ -23,7 +23,6 @@ def build_render_prompt(
     routing: RoutingDecision,
     search_response: SearchResponse,
 ) -> str:
-    # 只传给 LLM 精简信息，论文卡片由前端渲染
     brief_results = []
     for score, paper_id, doc, meta in search_response.results:
         brief_results.append(

@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls D:/CODING/BS/src/*.py)"
+      "Bash(ls D:/CODING/BS/src/*.py)",
+      "Bash(python:*)",
+      "Bash(where libreoffice:*)",
+      "Bash(where soffice:*)"
     ]
   }
 }
