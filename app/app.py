@@ -111,7 +111,7 @@ if query:
     st.session_state.history.append({
         "query":    query,
         "insights": result.rendered_text,
-        "papers":   result.search_response.results,
+        "papers":   result.results,
         "page":     0,
     })
     st.rerun()

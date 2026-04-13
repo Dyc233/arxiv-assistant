@@ -1,5 +1,4 @@
 from agent.schemas import ResponseMode, RoutingDecision
-from agent.tools.retrieval import SearchResponse
 
 
 ROUTER_DESCRIPTION = "你是一个论文检索路由器，只负责把用户请求拆成结构化检索意图。"
@@ -18,22 +17,17 @@ ROUTER_INSTRUCTIONS = [
 ]
 
 
-def build_render_prompt(
-    user_input: str,
-    routing: RoutingDecision,
-    search_response: SearchResponse,
-) -> str:
-    brief_results = []
-    for score, paper_id, doc, meta in search_response.results:
-        brief_results.append(
-            {
-                "title": meta.get("title", ""),
-                "publish_date": meta.get("publish_date", ""),
-                "categories": meta.get("categories", ""),
-                "top_conference": meta.get("top_conference", "") or "",
-                "summary": doc[:300],
-            }
-        )
+def build_render_prompt(user_input: str, routing: RoutingDecision, results: list) -> str:
+    brief_results = [
+        {
+            "title": meta.get("title", ""),
+            "publish_date": meta.get("publish_date", ""),
+            "categories": meta.get("categories", ""),
+            "top_conference": meta.get("top_conference", "") or "",
+            "summary": doc[:300],
+        }
+        for _score, _paper_id, doc, meta in results
+    ]
 
     mode_instruction = _response_mode_instruction(routing.response_mode)
     return (
