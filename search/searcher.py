@@ -112,13 +112,14 @@ class PaperSearcher:
             return []
 
         if query_text:
-            # 有语义查询：用 Reranker 打分
+            # 有语义查询：Reranker 打分后叠加 metadata_match_score，防止精确标题被语义近似项压住
             sentence_pairs = [
                 [query_text, f"Title: {p.get('title', '')}\nAbstract: {p.get('summary', p.get('abstract', ''))}"]
                 for p in filtered
             ]
             scores = self.reranker.predict(sentence_pairs)
-            ranked = sorted(zip(scores, filtered), key=lambda x: x[0], reverse=True)
+            combined = [s + metadata_match_score(p, title, authors, categories, comment) for s, p in zip(scores, filtered)]
+            ranked = sorted(zip(combined, filtered), key=lambda x: x[0], reverse=True)
         else:
             # 无语义查询：按字段匹配程度 + 时间倒排
             ranked = sorted(

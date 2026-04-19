@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from agent.brain import build_research_agent
+from agent.agent import build_research_agent
 
 st.set_page_config(page_title="arXiv NLP 论文助手", page_icon="📄", layout="wide")
 
@@ -13,7 +13,7 @@ PAGE_SIZE = 10
 def load_agent():
     return build_research_agent()
 
-with st.spinner("正在加载模型，首次启动请稍候..."):
+with st.spinner("正在加载模型，请稍候..."):
     agent = load_agent()
 
 

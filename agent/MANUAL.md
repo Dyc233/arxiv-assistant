@@ -1,7 +1,5 @@
 # Agent 模式说明
 
-Agent 的"模式"分两层，**互相独立、自由组合**。
-
 ---
 
 ## 第一层：`task_type`（用户意图）
@@ -15,7 +13,7 @@ Router 判断用户想干什么，决定 `response_mode`：
 | `report` | 明确要总结、综述、趋势分析 | `report` |
 | `lookup_then_report` | 先定位论文，再做报告 | `report` |
 
-`response_mode` 只影响 Renderer 的输出风格，**不影响检索逻辑**。
+`response_mode` 只影响 Renderer 的输出风格，不影响检索逻辑。
 
 ---
 
