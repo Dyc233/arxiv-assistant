@@ -9,18 +9,9 @@ class ResponseMode(StrEnum):
     REPORT = "report"
 
 
-class RoutingTaskType(StrEnum):
-    LOOKUP = "lookup"
-    SEARCH = "search"
-    REPORT = "report"
-    LOOKUP_THEN_REPORT = "lookup_then_report"
-
-
 class RoutingDecision(BaseModel):
-    task_type: RoutingTaskType = Field(description="The user's high-level task type.")
     response_mode: ResponseMode = Field(description="How the final answer should be rendered.")
     search_mode: str = Field(description="One of metadata, semantic, hybrid.")
-    user_goal: str = Field(description="A short description of what the user wants.")
     query_text: str | None = Field(default=None, description="Core semantic query without metadata constraints.")
     title: str | None = Field(default=None, description="Paper title or title fragment for precise lookup.")
     authors: str | None = Field(default=None, description="Author names, comma-separated if multiple.")

@@ -6,7 +6,7 @@ import torch
 from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
-from analysis.data_process import DEFAULT_PARQUET_PATH
+from analysis.process import DEFAULT_PARQUET_PATH
 
 
 CHROMA_DB_DIR = Path(__file__).resolve().parents[1] / "chroma_db"
