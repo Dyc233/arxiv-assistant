@@ -1,5 +1,5 @@
 import sys
-from agent.brain import build_research_agent
+from agent.agent import build_research_agent
 
 
 if __name__ == "__main__":

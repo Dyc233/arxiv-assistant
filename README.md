@@ -1,52 +1,28 @@
 # 项目概述
 
-我对这个项目的理解是：它本质上不是一个“泛学术问答 Agent”，而是一个比较聚焦的 arXiv NLP 论文检索助手。项目核心目标很明
-  确，就是围绕 cs.CL 这类 NLP 论文，搭一条从数据采集到检索再到中文结果呈现的完整链路，做成一个能跑通、能演示、也能支持一
-  定程度增量更新的本科毕设原型。
+arXiv NLP 论文检索与分析助手，本科毕设原型。围绕 cs.CL 类别论文，搭建从数据采集到检索再到中文结果呈现的完整链路。
 
-  从结构上看，项目主干是很标准也很克制的一条流水线。上游用 crawler/spider.py 从 arXiv 抓论文，先落到 SQLite；中间用
-  analysis/data_process.py 做清洗，把原始字段整理成 Parquet，并抽出 publish_date、top_conference、keywords、
-  content_to_embed 这些更适合检索的字段；再用 analysis/embedder.py 把内容向量化，写进本地 ChromaDB。到了查询阶段，
-  search/searcher.py 提供三种模式：纯语义检索、纯元数据检索、混合检索。最上层的 agent/brain.py 只是把这套检索能力包成一
-  个两阶段 Agent：先 Router 判断用户意图和检索方式，再 Renderer 把结果整理成中文列表或报告。
+## 系统架构
 
-  所以如果一句话概括，我会说这个项目更像“带 LLM 路由和中文输出层的论文搜索系统”，而不是“Agent 驱动的一切都交给大模型”的
-  系统。真正的核心价值其实在检索链路本身，尤其是 semantic / metadata / hybrid 这三种模式的切换，以及本地数据管道的完整
-  性；LLM 更多是在做意图结构化和结果组织，而不是直接替代检索。
+```
+data/spider.py          ← 从 arXiv 抓取论文，落地 SQLite
+analysis/process.py     ← 清洗，输出 Parquet；提取 publish_date / top_conference / keywords 等字段
+data/embedder.py        ← 向量化 content_to_embed，写入本地 ChromaDB
+search/searcher.py      ← 三种检索模式：semantic / metadata / hybrid
+agent/agent.py          ← 两阶段 Agent：Router 判意图 → Renderer 输出中文结果
+```
 
-  另外，memory 里提到的“不要过度工程化、尽量少代码、允许保留粗糙感”这件事，我觉得在代码里是明显贯彻了的。比如当前入口基
-  本就是 agent/agent.py 这个命令行程序，app/ 目录现在还是空的，说明现阶段重点不是前端交互，而是把检索系统本身跑通。再比
-  如代码里有全局单例 _searcher、Router 失败后直接降级到语义检索、很多模块都偏脚本式写法，这都很符合“毕设原型优先可运行，
-  不追求生产级完备性”的思路。
+增量更新由 `data/updater.py` 驱动，`analysis/process.py` 提供 `load_cleaned()` 作为所有分析脚本的统一数据入口。
 
-  如果再进一步评价当前项目所处的阶段，我会认为它已经不是”只有想法”的阶段了，而是一个有明确边界、数据链路完整、检索策略成
-  型、可演示可迭代的研究原型。它最成熟的部分是”论文库构建 + 检索 + 输出格式化”这条主线；相对薄弱的部分是产品层和工程化
-  层，比如前端、健壮性、测试覆盖、异常治理这些都还明显不是当前重点。这也和 memory 里的定位一致：目标是把主要场景跑通，而
-  不是做成长期维护的生产系统。
+## 分析模块（`analysis/`）
 
-## 分析模块 TODO
+| 脚本 | 输出 | 说明 |
+|------|------|------|
+| `wordcloud/global_wordcloud.py` | 词云图 + CSV | 标题 n-gram 文档频率，反映研究热点分布 |
+| `trends/trend.py` | 折线图 + CSV | 按月发文量，可见 ChatGPT 前后的增速拐点 |
+| `confs/conf.py` | 条形图 + CSV | 从 comment 字段提取顶会（ACL/EMNLP 等）录用分布 |
+| `authors/author.py` | 条形图 + CSV | 高产作者 Top 20 |
+| `keyword_trend/keyword_trend.py` | 热力图 + CSV | Top 30 词组 × 季度，行归一化，展示术语兴衰曲线 |
+| `crossdomain/crossdomain.py` | 条形图 + 折线图 + CSV | 非 cs.* 标签渗透率，反映 NLP 向其他学科扩张的趋势 |
 
-### 时序分析
-
-- [x] 词云（词频统计）
-- [x] 发文量趋势 — 按月/季度/年统计论文数，折线图（`publish_date`）
-- [ ] 技术术语生命周期 — 某术语从出现到衰退的完整曲线（`keywords` + `publish_date`）
-- [ ] 发布时段分布 — 一天中各小时发文数量（`publish_hour`）
-
-### 分类与领域分析
-
-- [ ] 跨学科渗透度 — 多标签论文比例，类别共现热力图（`category_list`）
-
-### 顶会分析
-
-- [x] 顶会录用分布 — ACL/EMNLP/NAACL 等各会议论文数（`top_conference`）
-- [ ] 顶会论文时序 — 各顶会随年份活跃度变化（`top_conference` + `publish_date`）
-
-### 作者网络分析
-
-- [x] 高产作者排行 — 论文数量 Top N（`author_list`）
-- [ ] 作者合作网络 — NetworkX 共著图，度中心性/中介中心性（`author_list`）
-
-### 内容聚类分析
-
-- [ ] 论文主题聚类 — K-Means + PCA 降维散点图（`content_to_embed` + 向量）
+详细方法说明见 `analysis/ANALYSIS.md`。

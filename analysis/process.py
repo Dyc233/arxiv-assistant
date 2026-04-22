@@ -184,6 +184,18 @@ def merge_cleaned_papers(
     return _normalize_cleaned_papers(merged_df).reset_index(drop=True)
 
 
+def load_cleaned() -> pd.DataFrame:
+    """合并主库与增量库，去重后返回完整数据集。"""
+    frames = [
+        pd.read_parquet(p)
+        for p in [DEFAULT_PARQUET_PATH, DEFAULT_INCREMENTAL_PATH]
+        if p.exists()
+    ]
+    if not frames:
+        raise FileNotFoundError("No parquet files found.")
+    return pd.concat(frames, ignore_index=True).drop_duplicates(subset=["id"], keep="last")
+
+
 def process_arxiv_data(
     db_path: Path = DEFAULT_DB_PATH,
     parquet_path: Path = DEFAULT_PARQUET_PATH,
