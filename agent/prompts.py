@@ -41,8 +41,8 @@ def build_render_prompt(user_input: str, routing: RoutingDecision, results: list
 def _response_mode_instruction(mode: ResponseMode) -> str:
     if mode == ResponseMode.RAW_LIST:
         return (
-            "输出要求: 只输出忠实的原始结果列表。"
-            " 不要写长篇分析。每条结果展示 title、authors、publish_date、categories、comment、url、score。"
+            "输出要求: 论文列表已由前端卡片展示，你不需要重复输出。"
+            " 只需用一句话确认检索完成（如'已为你找到 N 篇相关论文'），然后给出1-2个简短的检索技巧提示（如可尝试缩小时间范围、添加作者筛选等）。"
         )
     if mode == ResponseMode.LIST_WITH_INSIGHTS:
         return (

@@ -8,20 +8,15 @@ ANALYSIS_DIR = Path(__file__).resolve().parent.parent / "analysis"
 
 @st.cache_data
 def load_kpi():
-    trend = pd.read_csv(ANALYSIS_DIR / "trends" / "publish_trend.csv")
     conf = pd.read_csv(ANALYSIS_DIR / "confs" / "conference_distribution.csv")
-    total_papers = int(trend["count"].sum())
-    date_min = trend["month_str"].min()
-    date_max = trend["month_str"].max()
     conf_count = conf["conference"].nunique()
     conf_names = ", ".join(conf.sort_values("count", ascending=False)["conference"].head(5).tolist())
-    # 从 parquet 获取精确的最后日期
-    try:
-        df = pd.read_parquet(ANALYSIS_DIR / "cleaned_papers.parquet", columns=["publish_date"])
-        exact_max = df["publish_date"].dropna().max()
-        date_max = str(exact_max)[:10]
-    except Exception:
-        pass
+    # 从 parquet 读取实时数据
+    df = pd.read_parquet(ANALYSIS_DIR / "cleaned_papers.parquet", columns=["publish_date"])
+    total_papers = len(df)
+    dates = df["publish_date"].dropna()
+    date_min = str(dates.min())[:7] if len(dates) > 0 else "-"
+    date_max = str(dates.max())[:10] if len(dates) > 0 else "-"
     return total_papers, date_min, date_max, conf_count, conf_names
 
 

@@ -93,7 +93,7 @@ def main():
         incremental_df = read_cleaned_papers(args.incremental_path)
         print(f"重试 upsert，共 {len(incremental_df)} 篇...")
         _do_upsert(incremental_df, args)
-        print("✅ 重试完成")
+        print("重试完成")
         return
 
     # ── 正常流程 ──
@@ -150,7 +150,7 @@ def main():
             print("修复命令：python -m crawler.updater --retry-embedding")
             return
 
-    print(f"\n✅ 更新完成！新增 {len(incremental_df)} 篇论文")
+    print(f"\n更新完成！新增 {len(incremental_df)} 篇论文")
 
 
 if __name__ == "__main__":
