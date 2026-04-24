@@ -1,0 +1,5 @@
+- [项目概况](project_overview.md) — arXiv NLP 论文 RAG 系统，本科毕设，Kimi API，完整模块结构，当前进度
+- [代码风格要求](feedback_code_style.md) — 最少代码、保留粗糙感、禁止过度工程化
+- [当前实现认知](implementation_reality.md) — 当前代码对应的真实架构、模块边界和完成情况
+- [毕设要求与判断标准](thesis_requirements.md) — 本科毕设语境下的目标、优先级和取舍边界
+- [论文远程撰写计划](thesis_remote_writing_plan.md) — 4.25出发北京旅游，5.1交初稿，利用GitHub+平板远程写论文的策略
