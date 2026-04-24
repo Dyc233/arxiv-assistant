@@ -1,0 +1,14 @@
+{
+  "admin": {
+    "password": "admin",
+    "role": "admin"
+  },
+  "user1": {
+    "password": "114514",
+    "role": "用户"
+  },
+  "user2": {
+    "password": "114514",
+    "role": "用户"
+  }
+}

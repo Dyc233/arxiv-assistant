@@ -12,6 +12,7 @@ wheels/
 #data files
 chroma_db/
 *.parquet
+data/user.json
 
 #temp files
 .tmp/

@@ -14,7 +14,12 @@
       "Bash(.venv/Scripts/pip show *)",
       "Bash(.venv/Scripts/python.exe -m pip show agno)",
       "Bash(uv pip *)",
-      "Bash(timeout 30 uv run python -c ' *)"
+      "Bash(timeout 30 uv run python -c ' *)",
+      "Bash(python3 *)",
+      "Bash(.venv/Scripts/python *)",
+      "Read(//c/Users/dyc233/.cache/huggingface/hub/**)",
+      "Bash(curl -s --connect-timeout 5 https://huggingface.co)",
+      "Bash(git *)"
     ]
   }
 }
