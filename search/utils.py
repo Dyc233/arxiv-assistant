@@ -101,20 +101,24 @@ def filter_by_metadata(
     categories: str | None = None,
     comment: str | None = None,
 ) -> list[dict[str, Any]]:
-    """简单的元数据过滤：基于字符串包含关系"""
+    """简单的元数据过滤：基于字符串包含关系。categories和authors用AND，comment用OR。"""
     filtered = papers
 
     if title:
         filtered = [p for p in filtered if simple_text_match(title, p.get("title", ""))]
 
     if authors:
-        filtered = [p for p in filtered if any(simple_text_match(a.strip(), p.get("authors", "")) for a in authors.split(","))]
+        filtered = [p for p in filtered if all(simple_text_match(a.strip(), p.get("authors", "")) for a in authors.split(","))]
 
     if categories:
-        filtered = [p for p in filtered if any(simple_text_match(c.strip(), p.get("categories", "")) for c in categories.split(","))]
+        filtered = [p for p in filtered if all(simple_text_match(c.strip(), p.get("categories", "")) for c in categories.split(","))]
 
     if comment:
-        filtered = [p for p in filtered if any(simple_text_match(c.strip(), p.get("comment", "")) for c in comment.split(","))]
+        filtered = [p for p in filtered if any(
+            simple_text_match(c.strip(), p.get("comment", ""))
+            or simple_text_match(c.strip(), p.get("top_conference", ""))
+            for c in comment.split(",")
+        )]
 
     return filtered
 
@@ -131,5 +135,5 @@ def metadata_match_score(paper: dict[str, Any], title=None, authors=None, catego
     if categories:
         score += sum(0.3 for c in categories.split(",") if simple_text_match(c.strip(), paper.get("categories", "")))
     if comment:
-        score += 0.3 if simple_text_match(comment, paper.get("comment", "")) else 0
+        score += 0.3 if (simple_text_match(comment, paper.get("comment", "")) or simple_text_match(comment, paper.get("top_conference", ""))) else 0
     return score

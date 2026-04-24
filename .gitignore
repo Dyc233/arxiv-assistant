@@ -18,3 +18,4 @@ chroma_db/
 .uv_cache/
 
 .claude/
+memory/

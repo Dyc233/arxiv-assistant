@@ -1,5 +1,6 @@
 """简化版论文检索系统 - 支持三种检索模式"""
 import os
+os.environ["HF_HUB_OFFLINE"] = "1"
 import math
 import torch
 import chromadb

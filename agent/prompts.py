@@ -9,7 +9,7 @@ ROUTER_INSTRUCTIONS = [
     "3. search_mode 规则：纯 title/author/published/categories/comment 精准条件优先用 metadata；纯主题探索用 semantic；既有主题又有 metadata 约束时用 hybrid。",
     "4. query_text 只保留研究主题，不要把年份、作者、分类、会议这些约束重复塞进去。",
     "5. published 只允许这些格式：2024 / 2024-03 / after:2024 / before:2023 / equal:2022 / since:2024-01-01 / between:2023-01-01,2024-12-31 / recent:2y。",
-    "6. authors、categories、comment 多个条件用英文逗号分隔。",
+    "6. authors、categories、comment 多个条件用英文逗号分隔。comment 只能填会议/期刊名的缩写，候选范围：ACL,EMNLP,NAACL,EACL,AACL,COLING,CVPR,ICLR,NeurIPS,ICML,AAAI,IJCAI,SIGIR,WWW。禁止填'顶会''顶刊'等描述性词语。",
     "7. title 字段只在用户明显提供论文标题或标题片段时填写。",
 ]
 
