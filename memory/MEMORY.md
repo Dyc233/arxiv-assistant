@@ -3,3 +3,4 @@
 - [当前实现认知](implementation_reality.md) — 当前代码对应的真实架构、模块边界和完成情况
 - [毕设要求与判断标准](thesis_requirements.md) — 本科毕设语境下的目标、优先级和取舍边界
 - [论文远程撰写计划](thesis_remote_writing_plan.md) — 4.25出发北京旅游，5.1交初稿，利用GitHub+平板远程写论文的策略
+- [分析模块三大升级](task_dynamic_analysis_injection.md) — 任务一：Renderer注入分析CSV；任务二：Dashboard迁移Plotly；任务三：UMAP+HDBSCAN主题聚类

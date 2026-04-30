@@ -11,6 +11,7 @@ dependencies = [
     "nltk>=3.9.3",
     "openai>=2.29.0",
     "pandas>=3.0.1",
+    "plotly>=6.7.0",
     "pyarrow>=23.0.1",
     "pyspark>=4.1.1",
     "sentence-transformers>=5.2.3",
