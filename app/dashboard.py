@@ -87,15 +87,14 @@ def render_dashboard():
     metric_cols = st.columns(4)
     metric_cols[0].metric("📄 论文总量", f"{total_papers:,}")
     metric_cols[1].metric("🏆 覆盖顶会/期刊", conf_count)
-    metric_cols[2].metric("📅 时间范围", f"{date_min} ~ {date_max}")
-    metric_cols[3].metric("📊 分析维度", "7")
+    metric_cols[2].metric("📅 截止日期", f"{date_max}")
 
     st.divider()
 
     tab1, tab2, tab3 = st.tabs(["📊 热点与趋势", "🏅 学者与会议", "🌐 跨学科"])
 
     with tab1:
-        st.caption("NLP 领域论文发表趋势与关键词热度变化。hover 可查看具体数值，框选可缩放。")
+        st.caption("NLP 领域论文发表趋势与关键词热度变化。")
         c1, c2 = st.columns(2)
         with c1:
             _fig_publish_trend()

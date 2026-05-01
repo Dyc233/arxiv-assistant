@@ -4,9 +4,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st
 from agent.agent import build_research_agent
-from app.auth import save_query_log
+from app.auth import save_query_log, delete_query_log, clear_user_history
 
 PAGE_SIZE = 6
+MODE_LABELS = {"semantic": "语义检索", "metadata": "元数据检索", "hybrid": "混合检索"}
 
 
 @st.cache_resource
@@ -17,11 +18,50 @@ def load_agent():
 def render_search():
     agent = load_agent()
 
+    # clear all button
+    if st.session_state.history:
+        c1, c2 = st.columns([5, 1])
+        with c2:
+            if st.button("🗑️ 清空记录", key="clear_all"):
+                clear_user_history(st.session_state.username)
+                st.session_state.history = []
+                st.rerun()
+
     with st.container(height=520):
+        if not st.session_state.history:
+            st.info("""👋 欢迎使用 arXiv NLP 论文检索系统
+
+试试这些查询：
+- 找2025年关于大语言模型推理的论文
+- Instruction tuning 的最新进展
+- 对比学习在NLP中的应用 survey
+- 作者Yoshua Bengio最近的论文""")
+
         for idx, turn in enumerate(st.session_state.history):
             with st.chat_message("user"):
-                st.markdown(turn["query"])
+                c1, c2 = st.columns([20, 1])
+                with c1:
+                    st.markdown(turn["query"])
+                with c2:
+                    if turn.get("id") and st.button("🗑️", key=f"del_{turn['id']}"):
+                        delete_query_log(turn["id"])
+                        st.session_state.history.pop(idx)
+                        st.rerun()
+
             with st.chat_message("assistant"):
+                routing = turn.get("routing")
+                if routing:
+                    parts = [MODE_LABELS.get(routing["search_mode"], routing["search_mode"])]
+                    if routing.get("published"):
+                        parts.append(f"时间: {routing['published']}")
+                    if routing.get("categories"):
+                        parts.append(f"类别: {routing['categories']}")
+                    if routing.get("authors"):
+                        parts.append(f"作者: {routing['authors']}")
+                    if routing.get("comment"):
+                        parts.append(f"会议/备注: {routing['comment']}")
+                    st.caption("🔍 " + " · ".join(parts))
+
                 papers = turn["papers"]
                 total = len(papers)
                 show_until = (turn["page"] + 1) * PAGE_SIZE
@@ -45,20 +85,28 @@ def render_search():
         with st.status("正在分析意图...", expanded=False) as status:
             routing = agent.route(query)
             print(f"\n[Router] {routing.model_dump_json(indent=2)}\n")
-            status.update(label="意图分析完成，正在检索...", state="running")
+            mode_label = MODE_LABELS.get(routing.search_mode, routing.search_mode)
+            status.update(label=f"意图: {mode_label}，正在检索...", state="running")
             results = agent._search(routing)
             status.update(label=f"检索到 {len(results)} 篇，正在生成分析...", state="running")
             from agent.prompts import build_render_prompt
             render_prompt = build_render_prompt(query, routing, results)
             run_output = agent.renderer.run(render_prompt)
             rendered_text = run_output.content if isinstance(run_output.content, str) else str(run_output.content)
-            status.update(label="完成", state="complete")
+            status.update(label=f"完成 · {mode_label} · {len(results)} 篇", state="complete")
 
+        qid = save_query_log(st.session_state.username, query, results, rendered_text)
         st.session_state.history.append({
-            "query": query, "insights": rendered_text,
+            "id": qid, "query": query, "insights": rendered_text,
             "papers": results, "page": 0,
+            "routing": {
+                "search_mode": routing.search_mode,
+                "published": routing.published or "",
+                "categories": routing.categories or "",
+                "authors": routing.authors or "",
+                "comment": routing.comment or "",
+            },
         })
-        save_query_log(st.session_state.username, query, results, rendered_text)
         st.rerun()
 
 

@@ -73,27 +73,38 @@ def save_query_log(username, query, results, insights):
         results_json = "[]"
 
     with sqlite3.connect(str(APP_DB)) as conn:
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO query_log (username, query, results_json, insights) VALUES (?, ?, ?, ?)",
             (username, query, results_json, insights)
         )
+        return cur.lastrowid
 
 
 def load_user_history(username, limit=50):
     with sqlite3.connect(str(APP_DB)) as conn:
         rows = conn.execute(
-            "SELECT query, results_json, insights FROM query_log WHERE username = ? ORDER BY id DESC LIMIT ?",
+            "SELECT id, query, results_json, insights FROM query_log WHERE username = ? ORDER BY id DESC LIMIT ?",
             (username, limit)
         ).fetchall()
 
     history = []
-    for query, results_json, insights in reversed(rows):
+    for qid, query, results_json, insights in reversed(rows):
         try:
             results = [tuple(r) for r in json.loads(results_json)]
         except Exception:
             results = []
-        history.append({"query": query, "insights": insights, "papers": results, "page": 0})
+        history.append({"id": qid, "query": query, "insights": insights, "papers": results, "page": 0})
     return history
+
+
+def delete_query_log(qid):
+    with sqlite3.connect(str(APP_DB)) as conn:
+        conn.execute("DELETE FROM query_log WHERE id = ?", (qid,))
+
+
+def clear_user_history(username):
+    with sqlite3.connect(str(APP_DB)) as conn:
+        conn.execute("DELETE FROM query_log WHERE username = ?", (username,))
 
 
 # ==================== Login ====================
@@ -161,21 +172,35 @@ def render_admin_sidebar():
         with tab2:
             st.caption("增量更新论文库")
             if st.button("🔄 执行增量更新", width="stretch"):
-                with st.spinner("正在更新论文数据..."):
-                    import subprocess
-                    result = subprocess.run(
-                        [sys.executable, "data/updater.py"],
-                        capture_output=True, text=True, timeout=300,
-                        encoding="utf-8", errors="replace",
-                        cwd=str(Path(__file__).resolve().parent.parent)
+                import re, subprocess, os
+                with st.status("启动增量更新...", expanded=True) as status:
+                    env = os.environ.copy()
+                    env["PYTHONUNBUFFERED"] = "1"
+                    env["TQDM_DISABLE"] = "1"
+                    env["PYTHONIOENCODING"] = "utf-8"
+                    process = subprocess.Popen(
+                        [sys.executable, "-u", "data/updater.py"],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        text=True, encoding="utf-8", errors="replace",
+                        cwd=str(Path(__file__).resolve().parent.parent),
+                        env=env
                     )
-                    if result.returncode == 0:
-                        st.success("更新完成")
-                        st.text(result.stdout[-500:])
+                    ansi_re = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+                    for line in process.stdout:
+                        line = ansi_re.sub("", line).strip()
+                        if line:
+                            status.update(label=line[:100])
+                            st.write(line)
+                    process.wait()
+                    if process.returncode == 0:
+                        status.update(label="✅ 更新完成", state="complete")
                         from app.dashboard import load_kpi
                         load_kpi.clear()
                     else:
-                        st.error(f"更新失败: {result.stderr[-300:]}")
+                        stderr_text = process.stderr.read()
+                        stderr_text = ansi_re.sub("", stderr_text)
+                        status.update(label="❌ 更新失败", state="error")
+                        st.text(stderr_text[-500:])
 
             st.divider()
             if st.button("🚪 退出登录", width="stretch"):
